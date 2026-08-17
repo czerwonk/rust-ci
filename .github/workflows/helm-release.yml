@@ -1,0 +1,81 @@
+name: Release Helm Chart
+
+on:
+  workflow_call:
+    inputs:
+      chart-path:
+        required: true
+        type: string
+        description: "Path to the Helm chart directory, e.g. helm/my-chart"
+      pages-url:
+        required: true
+        type: string
+        description: "Base URL the Helm repository is served from (usually the repo's GitHub Pages URL)"
+      gh-pages-branch:
+        type: string
+        default: "gh-pages"
+        description: "Branch that hosts the packaged Helm repository"
+      dependency-repos:
+        type: string
+        default: "{}"
+        description: >
+          JSON object of Helm repo name -> URL to add before running
+          `helm dependency update`, e.g. {"bitnami": "https://charts.bitnami.com/bitnami"}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: 'latest'
+
+      - name: Add Helm dependency repositories
+        if: inputs.dependency-repos != '{}'
+        run: |
+          echo '${{ inputs.dependency-repos }}' | jq -r 'to_entries[] | "\(.key) \(.value)"' | while read -r name url; do
+            helm repo add "$name" "$url"
+          done
+          helm repo update
+
+      - name: Update dependencies
+        run: helm dependency update ${{ inputs.chart-path }}
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p .charts-tmp
+          helm package ${{ inputs.chart-path }} -d .charts-tmp
+
+      - name: Checkout ${{ inputs.gh-pages-branch }} branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.gh-pages-branch }}
+          path: gh-pages
+
+      - name: Update Helm repository
+        run: |
+          cp .charts-tmp/*.tgz gh-pages/
+          cd gh-pages
+          helm repo index . --url ${{ inputs.pages-url }}
+          git add .
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            CHART_VERSION=$(helm show chart ../${{ inputs.chart-path }} | grep '^version:' | awk '{print $2}')
+            git commit -m "Update Helm chart to version ${CHART_VERSION}"
+            git push
+          fi

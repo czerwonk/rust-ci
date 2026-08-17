@@ -122,6 +122,43 @@ jobs:
 Requires a `CARGO_REGISTRY_TOKEN` secret available to the caller (passed
 through via `secrets: inherit`).
 
+### `helm-release.yml`
+
+Packages a Helm chart and publishes it to a `gh-pages`-style branch as a
+Helm repository (index regenerated via `helm repo index`, chart committed
+and pushed only if it changed).
+
+```yaml
+name: Release Helm Chart
+
+on:
+  push:
+    branches: ["main"]
+    paths: ["helm/**"]
+  workflow_dispatch:
+
+jobs:
+  release:
+    uses: czerwonk/rust-ci/.github/workflows/helm-release.yml@v1
+    with:
+      chart-path: helm/my-chart
+      pages-url: https://my-org.github.io/my-repo
+```
+
+If the chart declares dependencies on external repos, pass
+`dependency-repos` (a JSON object of repo name -> URL, added via `helm repo
+add` before `helm dependency update`):
+
+```yaml
+    with:
+      chart-path: helm/my-chart
+      pages-url: https://my-org.github.io/my-repo
+      dependency-repos: '{"bitnami": "https://charts.bitnami.com/bitnami"}'
+```
+
+`gh-pages-branch` (default `gh-pages`) overrides the branch the packaged
+repository is hosted on.
+
 ## Versioning
 
 Consumers should pin to a major version tag (e.g. `@v1`), which is moved
