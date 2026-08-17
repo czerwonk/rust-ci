@@ -1,7 +1,6 @@
 # rust-ci
 
 Shared, reusable GitHub Actions workflows for czerwonk's Rust projects.
-Extracted from the [hakanai](https://github.com/czerwonk/hakanai) CI pipeline.
 
 ## Workflows
 
