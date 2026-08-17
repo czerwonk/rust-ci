@@ -97,6 +97,31 @@ pre-built assets into the build context, plus `context` (default `.`),
 `image-name` (default: the calling repository), and `sign-image` (default
 `true`) to opt out of cosign signing.
 
+### `publish.yml`
+
+Publishes one or more crates to crates.io in the given order (useful for a
+`lib` crate that a `cli`/`server` crate depends on), with an optional check
+that a manifest's `version` matches the pushed `vX.Y.Z` tag.
+
+```yaml
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    uses: czerwonk/rust-ci/.github/workflows/publish.yml@v1
+    secrets: inherit
+    with:
+      packages: '["my-lib", "my-cli"]'
+      version-manifest: lib/Cargo.toml
+```
+
+Requires a `CARGO_REGISTRY_TOKEN` secret available to the caller (passed
+through via `secrets: inherit`).
+
 ## Versioning
 
 Consumers should pin to a major version tag (e.g. `@v1`), which is moved
