@@ -70,6 +70,33 @@ jobs:
 `release.yml` accepts the same `artifact-name`/`artifact-path`/`env` inputs
 as `ci.yml`, downloaded before the per-target `cargo build`.
 
+### `docker.yml`
+
+Builds and pushes a Docker image to `ghcr.io` using Buildx, with GHA layer
+caching and cosign signing (skipped on pull requests).
+
+```yaml
+name: Docker
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  docker:
+    uses: czerwonk/rust-ci/.github/workflows/docker.yml@v1
+    secrets: inherit
+```
+
+It also accepts the shared `artifact-name`/`artifact-path` inputs to inject
+pre-built assets into the build context, plus `context` (default `.`),
+`dockerfile` (default `Dockerfile`), `registry` (default `ghcr.io`),
+`image-name` (default: the calling repository), and `sign-image` (default
+`true`) to opt out of cosign signing.
+
 ## Versioning
 
 Consumers should pin to a major version tag (e.g. `@v1`), which is moved
