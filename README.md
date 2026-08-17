@@ -22,6 +22,22 @@ jobs:
     uses: czerwonk/rust-ci/.github/workflows/ci.yml@v1
 ```
 
+If a project needs to inject pre-built assets (e.g. bundled JS/WASM) before
+running clippy/test, pass `artifact-name`/`artifact-path` (downloaded via
+`actions/download-artifact` before the Rust steps) and `env` (a JSON object
+of extra environment variables, e.g. to skip an asset build step):
+
+```yaml
+jobs:
+  ci:
+    needs: build-assets
+    uses: czerwonk/rust-ci/.github/workflows/ci.yml@v1
+    with:
+      artifact-name: ${{ needs.build-assets.outputs.artifact-name }}
+      artifact-path: server/includes/
+      env: '{"SKIP_ASSET_BUILD": "1"}'
+```
+
 ### `release.yml`
 
 Cross-compiles a binary for a matrix of targets, packages it (`tar.gz` on
@@ -50,6 +66,9 @@ jobs:
         ]
     secrets: inherit
 ```
+
+`release.yml` accepts the same `artifact-name`/`artifact-path`/`env` inputs
+as `ci.yml`, downloaded before the per-target `cargo build`.
 
 ## Versioning
 

@@ -2,6 +2,19 @@ name: CI
 
 on:
   workflow_call:
+    inputs:
+      artifact-name:
+        type: string
+        default: ""
+        description: "Name of a pre-built artifact to download before building (e.g. compiled web assets), if any"
+      artifact-path:
+        type: string
+        default: ""
+        description: "Path to download artifact-name into"
+      env:
+        type: string
+        default: "{}"
+        description: "JSON object of extra environment variables to export before building/testing"
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,6 +25,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      - name: Download pre-built artifact
+        if: inputs.artifact-name != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+
+      - name: Set extra env vars
+        if: inputs.env != '{}'
+        run: echo '${{ inputs.env }}' | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -28,6 +52,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      - name: Download pre-built artifact
+        if: inputs.artifact-name != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+
+      - name: Set extra env vars
+        if: inputs.env != '{}'
+        run: echo '${{ inputs.env }}' | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
 

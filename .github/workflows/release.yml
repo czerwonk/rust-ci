@@ -13,6 +13,18 @@ on:
         description: >
           JSON array of build targets, e.g.
           [{"release_for":"Linux-x86_64","os":"ubuntu-latest","target":"x86_64-unknown-linux-gnu"}]
+      artifact-name:
+        type: string
+        default: ""
+        description: "Name of a pre-built artifact to download before building (e.g. compiled web assets), if any"
+      artifact-path:
+        type: string
+        default: ""
+        description: "Path to download artifact-name into"
+      env:
+        type: string
+        default: "{}"
+        description: "JSON object of extra environment variables to export before building"
 
 env:
   CARGO_TERM_COLOR: always
@@ -38,6 +50,17 @@ jobs:
         with:
           key: ${{ matrix.platform.target }}
 
+      - name: Download pre-built artifact
+        if: inputs.artifact-name != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+
+      - name: Set extra env vars
+        if: inputs.env != '{}'
+        run: echo '${{ inputs.env }}' | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> "$GITHUB_ENV"
+
       # Linux ARM64 specific setup
       - name: Install aarch64 cross-compilation tools
         if: matrix.platform.target == 'aarch64-unknown-linux-gnu'
@@ -47,7 +70,7 @@ jobs:
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.platform.target }}
+        run: cargo build --release --workspace --target ${{ matrix.platform.target }}
 
       - name: Prepare artifact metadata
         id: artifact
