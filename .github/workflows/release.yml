@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      bin-name:
+        required: true
+        type: string
+        description: "Name of the compiled binary (without .exe)"
+      matrix:
+        required: true
+        type: string
+        description: >
+          JSON array of build targets, e.g.
+          [{"release_for":"Linux-x86_64","os":"ubuntu-latest","target":"x86_64-unknown-linux-gnu"}]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build - ${{ matrix.platform.release_for }}
+    strategy:
+      matrix:
+        platform: ${{ fromJson(inputs.matrix) }}
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Setup cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform.target }}
+
+      # Linux ARM64 specific setup
+      - name: Install aarch64 cross-compilation tools
+        if: matrix.platform.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.platform.target }}
+
+      - name: Prepare artifact metadata
+        id: artifact
+        shell: bash
+        run: |
+          slug=$(echo "${{ matrix.platform.release_for }}" | tr '[:upper:]' '[:lower:]')
+          if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
+            echo "bin=${{ inputs.bin-name }}.exe" >> "$GITHUB_OUTPUT"
+            echo "ext=zip" >> "$GITHUB_OUTPUT"
+          else
+            echo "bin=${{ inputs.bin-name }}" >> "$GITHUB_OUTPUT"
+            echo "ext=tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+          echo "name=${{ inputs.bin-name }}-${slug}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare artifacts [Windows]
+        if: matrix.platform.os == 'windows-latest'
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          7z a ../../../${{ steps.artifact.outputs.name }}.zip ${{ steps.artifact.outputs.bin }}
+          cd -
+
+      - name: Prepare artifacts [macOS/Linux]
+        if: matrix.platform.os != 'windows-latest'
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          tar czvf ../../../${{ steps.artifact.outputs.name }}.tar.gz ${{ steps.artifact.outputs.bin }}
+          cd -
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}.${{ steps.artifact.outputs.ext }}
+          path: ${{ steps.artifact.outputs.name }}.${{ steps.artifact.outputs.ext }}
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
