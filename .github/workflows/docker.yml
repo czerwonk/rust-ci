@@ -19,6 +19,14 @@ on:
         type: string
         default: "Dockerfile"
         description: "Path to the Dockerfile, relative to context"
+      target:
+        type: string
+        default: ""
+        description: "Build stage of a multi-stage Dockerfile; defaults to the last stage"
+      build-args:
+        type: string
+        default: ""
+        description: "Build args, one KEY=VALUE per line"
       registry:
         type: string
         default: "ghcr.io"
@@ -98,8 +106,11 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          target: ${{ inputs.target }}
+          build-args: ${{ inputs.build-args }}
+          # Scoped per image, so multiple images of one repository don't evict each other's cache
+          cache-from: type=gha,scope=${{ env.IMAGE_NAME }}
+          cache-to: type=gha,mode=max,scope=${{ env.IMAGE_NAME }}
 
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker

@@ -94,8 +94,27 @@ jobs:
 It also accepts the shared `artifact-name`/`artifact-path` inputs to inject
 pre-built assets into the build context, plus `context` (default `.`),
 `dockerfile` (default `Dockerfile`), `registry` (default `ghcr.io`),
-`image-name` (default: the calling repository), and `sign-image` (default
-`true`) to opt out of cosign signing.
+`image-name` (default: the calling repository), `target` (stage of a
+multi-stage Dockerfile), `build-args` (one `KEY=VALUE` per line), and
+`sign-image` (default `true`) to opt out of cosign signing.
+
+A repository that ships more than one image calls the workflow once per
+image; `image-name` keeps the refs and the build caches apart:
+
+```yaml
+jobs:
+  docker:
+    uses: czerwonk/rust-ci/.github/workflows/docker.yml@v1
+    secrets: inherit
+  docker-worker:
+    uses: czerwonk/rust-ci/.github/workflows/docker.yml@v1
+    secrets: inherit
+    with:
+      image-name: czerwonk/my-project-worker
+      target: worker
+      build-args: |
+        BIN=my-worker
+```
 
 ### `publish.yml`
 
