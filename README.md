@@ -19,7 +19,7 @@ on:
 
 jobs:
   ci:
-    uses: czerwonk/rust-ci/.github/workflows/ci.yml@v1
+    uses: czerwonk/rust-ci/.github/workflows/ci.yml@v2
 ```
 
 If a project needs to inject pre-built assets (e.g. bundled JS/WASM) before
@@ -31,7 +31,7 @@ of extra environment variables, e.g. to skip an asset build step):
 jobs:
   ci:
     needs: build-assets
-    uses: czerwonk/rust-ci/.github/workflows/ci.yml@v1
+    uses: czerwonk/rust-ci/.github/workflows/ci.yml@v2
     with:
       artifact-name: ${{ needs.build-assets.outputs.artifact-name }}
       artifact-path: server/includes/
@@ -53,7 +53,7 @@ on:
 
 jobs:
   release:
-    uses: czerwonk/rust-ci/.github/workflows/release.yml@v1
+    uses: czerwonk/rust-ci/.github/workflows/release.yml@v2
     with:
       bin-name: my-binary
       matrix: |
@@ -87,7 +87,7 @@ on:
 
 jobs:
   docker:
-    uses: czerwonk/rust-ci/.github/workflows/docker.yml@v1
+    uses: czerwonk/rust-ci/.github/workflows/docker.yml@v2
     secrets: inherit
 ```
 
@@ -104,10 +104,10 @@ image; `image-name` keeps the refs and the build caches apart:
 ```yaml
 jobs:
   docker:
-    uses: czerwonk/rust-ci/.github/workflows/docker.yml@v1
+    uses: czerwonk/rust-ci/.github/workflows/docker.yml@v2
     secrets: inherit
   docker-worker:
-    uses: czerwonk/rust-ci/.github/workflows/docker.yml@v1
+    uses: czerwonk/rust-ci/.github/workflows/docker.yml@v2
     secrets: inherit
     with:
       image-name: czerwonk/my-project-worker
@@ -131,7 +131,7 @@ on:
 
 jobs:
   publish:
-    uses: czerwonk/rust-ci/.github/workflows/publish.yml@v1
+    uses: czerwonk/rust-ci/.github/workflows/publish.yml@v2
     secrets: inherit
     with:
       packages: '["my-lib", "my-cli"]'
@@ -158,7 +158,7 @@ on:
 
 jobs:
   release:
-    uses: czerwonk/rust-ci/.github/workflows/helm-release.yml@v1
+    uses: czerwonk/rust-ci/.github/workflows/helm-release.yml@v2
     with:
       chart-path: helm/my-chart
       pages-url: https://my-org.github.io/my-repo
@@ -178,6 +178,39 @@ add` before `helm dependency update`):
 `gh-pages-branch` (default `gh-pages`) overrides the branch the packaged
 repository is hosted on.
 
+### `assets.yml`
+
+Builds frontend assets (npm, optionally WASM via wasm-pack), uploads them as
+an artifact for the other workflows' `artifact-name`/`artifact-path` inputs,
+and optionally runs frontend tests against the built files.
+
+```yaml
+jobs:
+  assets:
+    uses: czerwonk/rust-ci/.github/workflows/assets.yml@v2
+    with:
+      node-version: "26"
+      package-dir: typescript
+      wasm: true
+      build-command: make build-ts
+      artifact-path: server/includes/
+      artifact-files: |
+        server/includes/*.js
+        server/includes/*.wasm
+      test-command: cd typescript/tests && npm test
+
+  ci:
+    needs: assets
+    uses: czerwonk/rust-ci/.github/workflows/ci.yml@v2
+    with:
+      artifact-name: ${{ needs.assets.outputs.artifact-name }}
+      artifact-path: server/includes/
+```
+
+`artifact-files` lists the uploaded files (relative to the repository root,
+all inside `artifact-path`); `artifact-path` is the directory the test job
+downloads them back into. Further inputs: `wasm-pack-version` (default
+`latest`). Output: `artifact-name`.
 ## Versioning
 
 Consumers should pin to a major version tag (e.g. `@v1`), which is moved

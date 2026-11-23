@@ -1,0 +1,114 @@
+name: Assets
+
+on:
+  workflow_call:
+    inputs:
+      build-command:
+        required: true
+        type: string
+        description: "Command that builds the assets (e.g. make build-ts)"
+      artifact-path:
+        required: true
+        type: string
+        description: "Directory the built assets live in; the test job downloads the artifact back into it"
+      artifact-files:
+        required: true
+        type: string
+        description: "Files to upload, one glob per line, relative to the repository root (all inside artifact-path)"
+      node-version:
+        type: string
+        default: "lts/*"
+        description: "Node.js version to set up"
+      package-dir:
+        type: string
+        default: "."
+        description: "Directory containing package.json/package-lock.json"
+      wasm:
+        type: boolean
+        default: false
+        description: "Install lld, wasm-pack and the wasm32-unknown-unknown target before building"
+      wasm-pack-version:
+        type: string
+        default: "latest"
+        description: "wasm-pack version to install when wasm is true"
+      test-command:
+        type: string
+        default: ""
+        description: "Command that runs the frontend tests against the built assets, if any"
+    outputs:
+      artifact-name:
+        description: "Name of the uploaded artifact, for the artifact-name input of the other workflows"
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.artifact-name.outputs.name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set artifact name
+        id: artifact-name
+        run: echo "name=compiled-assets-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: "npm"
+          cache-dependency-path: ${{ inputs.package-dir }}/package-lock.json
+
+      - name: Install lld
+        if: inputs.wasm
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lld
+
+      - name: Install wasm-pack
+        if: inputs.wasm
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: ${{ inputs.wasm-pack-version }}
+
+      - name: Add wasm32 target
+        if: inputs.wasm
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install npm dependencies
+        run: npm install --prefix "${{ inputs.package-dir }}"
+
+      - name: Build assets
+        run: ${{ inputs.build-command }}
+
+      - name: Upload assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifact-name.outputs.name }}
+          path: ${{ inputs.artifact-files }}
+          if-no-files-found: error
+          retention-days: 1
+
+  test:
+    if: inputs.test-command != ''
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download assets
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: "npm"
+          cache-dependency-path: ${{ inputs.package-dir }}/package-lock.json
+
+      - name: Install npm dependencies
+        run: npm install --prefix "${{ inputs.package-dir }}"
+
+      - name: Run tests
+        run: ${{ inputs.test-command }}
